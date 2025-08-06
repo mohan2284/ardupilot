@@ -62,6 +62,16 @@ public:
     bool logging_started(void) const override { return _write_fd != -1; }
     void io_timer(void) override;
 
+    bool writecsv(const void *pBuffer, uint16_t size) override;
+    bool writeheader(const void *buf, uint16_t size) override;
+    void start_csv_log(void);
+    void io_csv_write(void); 
+
+    void get_log_info_custom(uint16_t log_num, uint32_t &size, uint32_t &time_utc) override;
+    int16_t get_log_data_custom(uint16_t log_num, uint16_t page, uint32_t offset, uint16_t len, uint8_t *data) override;
+    uint16_t get_num_logs_custom() override;
+    void get_log_boundaries_custom(uint16_t log_num, uint32_t & start_page, uint32_t & end_page) override;
+
 protected:
 
     bool WritesOK() const override;
@@ -133,6 +143,7 @@ private:
     // can open/close files without causing the backend to write to a
     // bad fd
     HAL_Semaphore write_fd_semaphore;
+    HAL_Semaphore write_fd_semaphore_custom;
 
     // async erase state
     struct {
@@ -144,6 +155,24 @@ private:
     const char *last_io_operation = "";
 
     bool start_new_log_pending;
+
+    bool start_csv_log_pending = true;
+    char buf_custom[500];
+    bool header_written = false;
+    uint16_t header_size = 0;
+    const void *pBuffer_custom;
+    uint16_t size_custom = 0;
+    int _write_fd_custom = -1;
+    char *_write_filename_custom;
+    int _read_fd_custom = -1;
+    uint16_t _read_fd_log_num_custom;
+    uint32_t _read_offset_custom;
+    uint32_t _write_offset_custom;
+
+    char *_log_file_name_custom(const uint16_t log_num) const;
+    uint32_t _get_log_size_custom(const uint16_t log_num);
+    uint32_t _get_log_time_custom(const uint16_t log_num);
+    bool dirent_to_log_num_custom(const dirent *de, uint16_t &log_num) const;
 };
 
 #endif // HAL_LOGGING_FILESYSTEM_ENABLED

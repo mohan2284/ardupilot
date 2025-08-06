@@ -791,4 +791,12 @@ bool AP_Logger_RateLimiter::should_log(uint8_t msgid, bool writev_streaming)
     return ret;
 }
 
+bool AP_Logger_Backend::WriteCSVBlock(const void *pBuffer, uint16_t size) 	{
+    return writecsv(pBuffer, size);
+}
+
+bool AP_Logger_Backend::WriteLogHeader(const void *buf, uint16_t size) {
+    return writeheader(buf, size);
+}
+
 #endif  // HAL_LOGGING_ENABLED

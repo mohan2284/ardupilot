@@ -15,6 +15,8 @@
 #include "AP_Camera_MAVLinkCamV2.h"
 #include "AP_Camera_Scripting.h"
 
+#include <AP_Logger/AP_Logger.h>
+
 const AP_Param::GroupInfo AP_Camera::var_info[] = {
 
     // @Param: _MAX_ROLL
@@ -313,7 +315,7 @@ MAV_RESULT AP_Camera::handle_command(const mavlink_command_int_t &packet)
                 control(packet.param1, packet.param2, packet.param3, packet.param4, packet.x, packet.y);
                 return MAV_RESULT_ACCEPTED;
             }
-            gcs().send_text(MAV_SEVERITY_WARNING, "Camera not ready for control!");
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Camera not ready for control!");
             return MAV_RESULT_FAILED;
         }
         else
@@ -605,6 +607,15 @@ void AP_Camera::send_feedback(mavlink_channel_t chan)
             _backends[instance]->send_camera_feedback(chan);
         }
     }
+}
+
+void AP_Camera::send_trigger_org_feedback(mavlink_channel_t chan) const
+{
+    if(AP::logger()._params.downloadcsv == 0){
+        //RTK message is not sent and CSV log is not stored
+        return;
+    }
+    _backends[0]->send_camera_trigger_org(chan);
 }
 
 // send camera information message to GCS

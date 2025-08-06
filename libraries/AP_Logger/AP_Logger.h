@@ -351,6 +351,7 @@ public:
         AP_Float blk_ratemax;
         AP_Float disarm_ratemax;
         AP_Int16 max_log_files;
+        AP_Int8 downloadcsv;
     } _params;
 
     const struct LogStructure *structure(uint16_t num) const;
@@ -416,6 +417,11 @@ public:
 
     // add a filename to list of files to log. The name must be a constant string, not allocated
     void log_file_content(const char *name);
+
+    void WriteCSVBlock(const void *pBuffer, uint16_t size);
+    void WriteLogHeader(const void *buf, uint16_t size);
+    uint16_t get_num_logs_custom(void);
+    void get_log_boundaries_custom(uint16_t log_num, uint32_t & start_page, uint32_t & end_page);
 
 protected:
 
@@ -606,6 +612,18 @@ private:
     void get_log_info(uint16_t log_num, uint32_t &size, uint32_t &time_utc);
 
     int16_t get_log_data(uint16_t log_num, uint16_t page, uint32_t offset, uint16_t len, uint8_t *data);
+
+    uint16_t _log_next_list_entry_custom;
+    uint16_t _log_last_list_entry_custom;
+    uint16_t _log_num_logs_custom;
+    uint16_t _log_num_data_custom;
+    uint32_t _log_data_offset_custom;
+    uint32_t _log_data_size_custom;
+    uint32_t _log_data_remaining_custom;
+    uint32_t _log_data_page_custom;
+    
+    void get_log_info_custom(uint16_t log_num, uint32_t &size, uint32_t &time_utc);
+    int16_t get_log_data_custom(uint16_t log_num, uint16_t page, uint32_t offset, uint16_t len, uint8_t *data);
 
     /* end support for retrieving logs via mavlink: */
 

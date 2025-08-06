@@ -1073,6 +1073,7 @@ ap_message GCS_MAVLINK::mavlink_id_to_ap_message_id(const uint32_t mavlink_id) c
 #endif
 #if AP_CAMERA_ENABLED
         { MAVLINK_MSG_ID_CAMERA_FEEDBACK,       MSG_CAMERA_FEEDBACK},
+        { MAVLINK_MSG_ID_CAMERA_TRIGGER_ORG,    MSG_CAMERA_TRIGGER_ORG},
         { MAVLINK_MSG_ID_CAMERA_INFORMATION,    MSG_CAMERA_INFORMATION},
         { MAVLINK_MSG_ID_CAMERA_SETTINGS,       MSG_CAMERA_SETTINGS},
 #if AP_CAMERA_SEND_FOV_STATUS_ENABLED
@@ -6210,6 +6211,16 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
             }
             return camera->send_mavlink_message(*this, id);
         }
+    case MSG_CAMERA_TRIGGER_ORG:
+        {
+            AP_Camera *camera = AP::camera();
+            if (camera == nullptr) {
+                break;
+            }
+            CHECK_PAYLOAD_SIZE(CAMERA_TRIGGER_ORG);
+            camera->send_trigger_org_feedback(chan);
+        }
+        break;
 #endif  // AP_CAMERA_ENABLED
 
     case MSG_SYSTEM_TIME:

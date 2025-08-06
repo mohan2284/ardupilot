@@ -9,6 +9,9 @@
 #include <AP_Mount/AP_Mount.h>
 #include <AP_AHRS/AP_AHRS.h>
 
+#include <AP_Logger/AP_Logger.h>
+#include <stdio.h>
+
 extern const AP_HAL::HAL& hal;
 
 // Constructor
@@ -187,7 +190,7 @@ bool AP_Camera_Backend::take_picture()
 /*Start: Asteria Code Change*/
 bool AP_Camera_Backend::camTrig_init(){
     if(!trig_init_start){
-        gcs().send_text(MAV_SEVERITY_WARNING, "Please wait while geotagging is being sync!");
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Please wait while geotagging is being sync!");
         trig_init_start = true;
     }
 
@@ -197,7 +200,7 @@ bool AP_Camera_Backend::camTrig_init(){
     if(!first_trig && ((AP_HAL::millis() - tstart) > (uint32_t)(_params._cam1_bootup_trig_time * 1000)))
     {
         if(feedback_rcvd && trig_pic){
-            gcs().send_text(MAV_SEVERITY_WARNING, "CAM1 INIT TRIG-1 completed");
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "CAM1 INIT TRIG-1 completed");
             first_trig = true;
             feedback_rcvd = false;
             count = 0;
@@ -215,18 +218,18 @@ bool AP_Camera_Backend::camTrig_init(){
         {
             count++;
             trig_fail = true;
-            gcs().send_text(MAV_SEVERITY_WARNING, "TRIG-1 attempt-%d feedback, failed", count);
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "TRIG-1 attempt-%d feedback, failed", count);
             if(count > 2){
                 _params.trigger_duration.set_and_save(_frontend.trigger_duration_copy);
                 abort_camInit = true;
-                gcs().send_text(MAV_SEVERITY_WARNING, "CAM1 INIT TRIG-1 failed");
+                GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "CAM1 INIT TRIG-1 failed");
                 return false;
             }
         } 
 
         if(take_picture())
         {
-            gcs().send_text(MAV_SEVERITY_WARNING, "TRIG-1 attempt-%d", count+1);
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "TRIG-1 attempt-%d", count+1);
             trig_pic = true;
             trig_fail = false;
             last_trig = AP_HAL::millis();
@@ -237,8 +240,8 @@ bool AP_Camera_Backend::camTrig_init(){
     else if(!trig_init_done && first_trig && ((AP_HAL::millis() - last_tstart) > 5000))
     {
         if(feedback_rcvd && trig_pic){
-            gcs().send_text(MAV_SEVERITY_WARNING, "CAM1 INIT TRIG-2 completed");
-            gcs().send_text(MAV_SEVERITY_WARNING, "Ready for Mapping Missions");
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "CAM1 INIT TRIG-2 completed");
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Ready for Mapping Missions");
             _params.trigger_duration.set_and_save(_frontend.trigger_duration_copy);
             trig_init_done = true;
             feedback_rcvd = false;
@@ -259,17 +262,17 @@ bool AP_Camera_Backend::camTrig_init(){
         {
             count++;
             trig_fail = true;
-            gcs().send_text(MAV_SEVERITY_WARNING, "TRIG-2 attempt-%d feedback, failed", count);
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "TRIG-2 attempt-%d feedback, failed", count);
             if(count > 2){
                 _params.trigger_duration.set_and_save(_frontend.trigger_duration_copy);
                 abort_camInit = true;
-                gcs().send_text(MAV_SEVERITY_WARNING, "CAM1 INIT TRIG-2 failed");
+                GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "CAM1 INIT TRIG-2 failed");
                 return false;
             }
         }
 
         if(take_picture()){
-            gcs().send_text(MAV_SEVERITY_WARNING, "TRIG-2 attempt-%d", count+1);
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "TRIG-2 attempt-%d", count+1);
             trig_pic = true;
             trig_fail = false;
             last_trig = AP_HAL::millis();
@@ -561,6 +564,7 @@ void AP_Camera_Backend::prep_mavlink_msg_camera_feedback(uint64_t timestamp_us)
     camera_feedback.feedback_trigger_logged_count = feedback_trigger_logged_count;
 
     GCS_SEND_MESSAGE(MSG_CAMERA_FEEDBACK);
+    GCS_SEND_MESSAGE(MSG_CAMERA_TRIGGER_ORG);
 }
 
 #if HAL_LOGGING_ENABLED
@@ -578,10 +582,63 @@ void AP_Camera_Backend::log_picture()
 
     if (!using_feedback_pin) {
         Write_Camera();
+        Write_Camera_org();
     } else {
         Write_Trigger();
+        Write_Trigger_org();
     }
 }
 #endif
+
+void AP_Camera_Backend::send_camera_trigger_org(mavlink_channel_t chan) const
+{
+    const AP_AHRS &ahrs = AP::ahrs();
+    const AP_GPS &gps = AP::gps();
+    const Location &loc = gps.location(0);
+    int32_t height_ellipsoid_mm=0;
+    float undulation=0.0;
+    int32_t altitude_rel = 0;
+    if (loc.initialised() && !loc.get_alt_cm(Location::AltFrame::ABOVE_HOME, altitude_rel)) {
+        // completely ignore this failure!  this is a shouldn't-happen
+        // as current_loc should never be in an altitude we can't
+        // convert.
+    }
+    uint64_t number_of_week=gps.time_week(0);
+    uint32_t week_elapsed_time=gps.time_week_ms(0);
+    uint8_t fixType = (uint8_t)gps.status(0);
+    if(gps.get_undulation(0,undulation)){
+        height_ellipsoid_mm=loc.alt*10 - undulation*1000;
+    }
+    mavlink_msg_camera_trigger_org_send(
+        chan,
+        image_index,//image index
+        camera_feedback.timestamp_us,//image timestamp
+        loc.lat,       // latitude
+        loc.lng,       // longitude
+        altitude_rel*1e-2f,                 // alt relative to home
+        wrap_180(ahrs.roll_sensor*1e-2f),  // roll angle (deg)
+        wrap_180(ahrs.pitch_sensor*1e-2f), // pitch angle (deg)
+        wrap_180(ahrs.yaw_sensor*1e-2f),   // yaw angle (deg)
+        fixType,//GPS fix type
+        height_ellipsoid_mm, //Ellipsoid height in mm
+        ahrs.get_roll(),//Roll
+        ahrs.get_pitch(),//Pitch
+        ahrs.get_yaw(),//Yaw
+        number_of_week,
+        week_elapsed_time);
+
+    char buf[250];
+    const int16_t offset = snprintf(buf, sizeof(buf), "ImageCaptureTimestamp,ImgIndex,GPSLatitude,GPSLongitude,RelALT,CAMRoll,CAMPitch,CAMYaw,GPSFixType,GNSSAntennaALT,UASRoll,UASPitch,UASYaw,GPSWeek,GPSTime\r\n");
+    GCS_SEND_TEXT(MAV_SEVERITY_WARNING,"Creating the header");
+    snprintf(buf + offset, sizeof(buf), "%" PRIu64",%u,%0.7f,%0.7f,%0.2f,%0.2f,%0.2f,%0.2f,%u,%" PRId32 ",%0.2f,%0.2f,%0.2f,%" PRIu64 ",%" PRIu32 "\r\n", camera_feedback.timestamp_us, image_index, loc.lat * 1e-7f, loc.lng * 1e-7f, altitude_rel*1e-2f, wrap_180(ahrs.roll_sensor*1e-2f), wrap_180(ahrs.pitch_sensor*1e-2f), wrap_180(ahrs.yaw_sensor*1e-2f), fixType, height_ellipsoid_mm, ahrs.get_roll()*1e-2f, ahrs.get_pitch()*1e-2f, ahrs.get_yaw()*1e-2f, number_of_week, week_elapsed_time);
+    AP::logger().WriteLogHeader(buf, strlen(buf));
+     
+    if(camera_feedback.timestamp_us){
+        char data[130];
+        snprintf(data, sizeof(data), "%" PRIu64 ",%u,%0.7f,%0.7f,%0.2f,%0.2f,%0.2f,%0.2f,%u,%" PRId32 ",%0.2f,%0.2f,%0.2f,%" PRIu64",%" PRIu32 "\r\n", camera_feedback.timestamp_us, image_index, loc.lat * 1e-7f, loc.lng * 1e-7f, altitude_rel*1e-2f, wrap_180(ahrs.roll_sensor*1e-2f), wrap_180(ahrs.pitch_sensor*1e-2f), wrap_180(ahrs.yaw_sensor*1e-2f), fixType, height_ellipsoid_mm, ahrs.get_roll()*1e-2f, ahrs.get_pitch()*1e-2f, ahrs.get_yaw()*1e-2f, number_of_week, week_elapsed_time);
+        AP::logger().WriteCSVBlock(data, strlen(data));
+    }
+    GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Camera trigger org feedback sent!");
+}
 
 #endif // AP_CAMERA_ENABLED

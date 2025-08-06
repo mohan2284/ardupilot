@@ -190,6 +190,13 @@ const AP_Param::GroupInfo AP_Logger::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("_MAX_FILES", 12, AP_Logger, _params.max_log_files, MAX_LOG_FILES),
 
+    // @Param: _DOWNLOAD
+    // @DisplayName: Select CSV or BIN log format downloded via mavlink
+    // @Description: If _DOWNLOAD is set to 2 then csv log will be downloaded via mavlink, set to 1 then bin log will be downloaded. Set to 0 to disable download or logging and sending of RTK mavling message.
+    // @Values: 0:Disabled, 1:BIN, 2:CSV
+    // @User: Standard
+    AP_GROUPINFO("_DOWNLOAD",  13, AP_Logger, _params.downloadcsv,       0),
+
     AP_GROUPEND
 };
 
@@ -1467,6 +1474,42 @@ void AP_Logger::start_io_thread(void)
 
     _io_thread_started = true;
     return;
+}
+
+void AP_Logger::WriteCSVBlock(const void *pBuffer, uint16_t size) {
+    FOR_EACH_BACKEND(WriteCSVBlock(pBuffer, size));
+}
+
+void AP_Logger::WriteLogHeader(const void *buf, uint16_t size) {
+    FOR_EACH_BACKEND(WriteLogHeader(buf, size));
+}
+
+void AP_Logger::get_log_boundaries_custom(uint16_t log_num, uint32_t & start_page, uint32_t & end_page) {
+    if (_next_backend == 0) {
+        return;
+    }
+    backends[0]->get_log_boundaries_custom(log_num, start_page, end_page);
+}
+
+void AP_Logger::get_log_info_custom(uint16_t log_num, uint32_t &size, uint32_t &time_utc) {
+    if (_next_backend == 0) {
+        return;
+    }
+    backends[0]->get_log_info_custom(log_num, size, time_utc);
+}
+
+int16_t AP_Logger::get_log_data_custom(uint16_t log_num, uint16_t page, uint32_t offset, uint16_t len, uint8_t *data) {
+    if (_next_backend == 0) {
+        return 0;
+    }
+    return backends[0]->get_log_data_custom(log_num, page, offset, len, data);
+}
+
+uint16_t AP_Logger::get_num_logs_custom(void) {
+    if (_next_backend == 0) {
+        return 0;
+    }
+    return backends[0]->get_num_logs_custom();
 }
 
 /* End of Write support */

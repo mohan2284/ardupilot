@@ -184,6 +184,17 @@ public:
 
     virtual void io_timer(void) {}
 
+	bool WriteCSVBlock(const void *pBuffer, uint16_t size);
+    virtual bool writecsv(const void *pBuffer, uint16_t size) { return true; }
+
+	bool WriteLogHeader(const void *buf, uint16_t size);
+	virtual bool writeheader(const void *buf, uint16_t size) { return true; }
+
+    virtual void get_log_info_custom(uint16_t list_entry, uint32_t &size, uint32_t &time_utc) {}
+    virtual int16_t get_log_data_custom(uint16_t list_entry, uint16_t page, uint32_t offset, uint16_t len, uint8_t *data) { return 0; }
+    virtual uint16_t get_num_logs_custom() { return 0; }
+    virtual void get_log_boundaries_custom(uint16_t list_entry, uint32_t & start_page, uint32_t & end_page) {}    
+
 protected:
 
     AP_Logger &_front;

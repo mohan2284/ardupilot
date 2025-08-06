@@ -104,5 +104,6 @@ enum ap_message : uint8_t {
 #endif
     MSG_AIRSPEED,
     MSG_FAILSAFE_TYPE,
+    MSG_CAMERA_TRIGGER_ORG,
     MSG_LAST // MSG_LAST must be the last entry in this enum
 };

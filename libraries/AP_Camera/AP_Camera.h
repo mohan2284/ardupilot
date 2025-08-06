@@ -3,7 +3,7 @@
 #pragma once
 
 #include "AP_Camera_config.h"
-
+#include <inttypes.h>
 #if AP_CAMERA_ENABLED
 
 #include <AP_Param/AP_Param.h>
@@ -202,6 +202,8 @@ public:
 
     // parameter var table
     static const struct AP_Param::GroupInfo var_info[];
+
+    void send_trigger_org_feedback(mavlink_channel_t chan) const;
 
 protected:
 

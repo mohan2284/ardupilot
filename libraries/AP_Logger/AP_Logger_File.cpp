@@ -921,6 +921,21 @@ void AP_Logger_File::io_timer(void)
     }
 
     if (_write_fd == -1 || !_initialised || recent_open_error()) {
+        if(_front._params.downloadcsv == 0)
+        {
+            //CSV logging is disabled
+            return;
+        }
+        if(start_csv_log_pending)
+        {
+            start_csv_log();
+            start_csv_log_pending = false;
+        }
+        if (!write_fd_semaphore_custom.take(1)) {
+            return;
+        }
+        io_csv_write();     /* Asteria Code Change */
+        write_fd_semaphore_custom.give();
         return;
     }
 
@@ -1023,8 +1038,94 @@ void AP_Logger_File::io_timer(void)
         }
 #endif
     }
+    io_csv_write();
 
     write_fd_semaphore.give();
+}
+
+void AP_Logger_File::start_csv_log(void)
+{
+//Stop logging and close previously open file
+    const bool have_sem = write_fd_semaphore_custom.take(hal.util->get_soft_armed()?1:20);
+    if (_write_fd_custom != -1) {
+        int fd = _write_fd_custom;
+		_write_fd_custom = -1;
+		AP::FS().close(fd);
+    }
+    if (have_sem) {
+        write_fd_semaphore_custom.give();
+    }
+
+
+    if(_read_fd_custom != -1) {
+        AP::FS().close(_read_fd_custom);
+		_read_fd_custom = -1;
+	}
+
+    uint16_t log_num = find_last_log();
+    log_num++; //to create new lognum 
+    if (log_num > _front.get_max_num_logs()) {
+        log_num = 1;
+    }
+
+    if (!write_fd_semaphore_custom.take(1)) {
+        return;
+    }
+
+//Free previously open file before staring new log or it will erase previous data
+    if(_write_filename_custom) {
+        free(_write_filename_custom);
+        _write_filename_custom = nullptr;
+    }
+
+//Fetch file name of new lognum after increment
+    _write_filename_custom = _log_file_name_custom(log_num);
+
+    if (_write_filename_custom == nullptr) {
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "Error: fetching CSV filename\n");
+       	write_fd_semaphore_custom.give();
+        return;
+    }
+
+    _write_fd_custom = AP::FS().open(_write_filename_custom, O_WRONLY|O_CREAT|O_TRUNC);
+    write_fd_semaphore_custom.give();
+
+    GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Started CSV Log!");
+}
+
+void AP_Logger_File::io_csv_write(void)
+{
+    /* if (!write_fd_semaphore_custom.take(1)) {
+        return;
+    } */
+	if (_write_fd_custom == -1) {
+    	_write_fd_custom = AP::FS().open(_write_filename_custom,  O_WRONLY|O_CREAT|O_APPEND);
+    	if (_write_fd_custom == -1) {
+    		GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "Failed to open %s\n", _write_filename_custom);
+            //write_fd_semaphore_custom.give();
+    		return;
+    	}
+    }
+    ssize_t written = AP::FS().write(_write_fd_custom, pBuffer_custom, size_custom);
+    if (written <= 0) {
+        AP::FS().close(_write_fd_custom);
+        _write_fd_custom = -1;
+    }
+    else {
+      	if(header_size == written){
+            header_written = true;
+        }
+		//GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Written %ld bytes to CSV\n", written); //for SITL
+		//GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Written %d bytes data to CSV\n", written);  //for hardware
+#if CONFIG_HAL_BOARD != HAL_BOARD_SITL && CONFIG_HAL_BOARD_SUBTYPE != HAL_BOARD_SUBTYPE_LINUX_NONE
+       	if(!AP::FS().fsync(_write_fd_custom)){
+            //GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Successfully wrote CSV data\n");
+       	}
+#endif
+	}
+    pBuffer_custom = nullptr;
+	size_custom = 0;
+    //write_fd_semaphore_custom.give();
 }
 
 bool AP_Logger_File::io_thread_alive() const
@@ -1101,5 +1202,238 @@ void AP_Logger_File::erase_next(void)
     erase.log_num = 0;
 }
 
+bool AP_Logger_File::writecsv(const void *pBuffer, uint16_t size)
+{
+        if(header_written)
+        {
+            //GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Writing CSV data!");
+            strcpy(buf_custom, (const char*)pBuffer);
+            //GCS_SEND_TEXT(MAV_SEVERITY_WARNING,"%s", buf_custom);
+            pBuffer_custom = buf_custom;
+            size_custom = size;
+        }
+        return true;
+}
+
+
+bool AP_Logger_File::writeheader(const void *buf, uint16_t size)
+{
+        if(!header_written)
+        {
+            //GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Writing CSV header!");
+            strcpy(buf_custom, (const char*)buf);
+            //GCS_SEND_TEXT(MAV_SEVERITY_WARNING,"%s", buf_custom);
+            pBuffer_custom = buf_custom;
+            size_custom = size;
+            header_size = size;
+        }
+        return true;
+}
+
+char *AP_Logger_File::_log_file_name_custom(const uint16_t log_num) const
+{
+        char *buf = nullptr;
+        if (asprintf(&buf, "%s/%uCAM.CSV", _log_directory, (unsigned)log_num) == -1) {
+        return nullptr;
+    }
+        if (buf == nullptr) {
+            return nullptr;
+        }
+        if (file_exists(buf)) {
+            return buf;
+        }
+        buf = nullptr;
+        if (asprintf(&buf, "%s/%05uCAM.CSV", _log_directory, (unsigned)log_num) == -1) {
+            return nullptr;
+        }
+        return buf;
+}
+
+void AP_Logger_File::get_log_boundaries_custom(const uint16_t list_entry, uint32_t & start_page, uint32_t & end_page)
+{
+    const uint16_t log_num = log_num_from_list_entry(list_entry);
+    if (log_num == 0) {
+        // that failed - probably no logs
+        start_page = 0;
+        end_page = 0;
+        return;
+    }
+
+    start_page = 0;
+    end_page = _get_log_size_custom(log_num) / LOGGER_PAGE_SIZE;
+}
+
+uint16_t AP_Logger_File::get_num_logs_custom()
+{
+    auto *d = AP::FS().opendir(_log_directory);
+    if (d == nullptr) {
+        return 0;
+    }
+    uint16_t high = find_last_log();
+    uint16_t ret = high;
+    uint16_t smallest_above_last = 0;
+
+    EXPECT_DELAY_MS(2000);
+    for (struct dirent *de=AP::FS().readdir(d); de; de=AP::FS().readdir(d)) {
+        EXPECT_DELAY_MS(100);
+        uint16_t thisnum;
+        
+        if (!dirent_to_log_num_custom(de, thisnum)) {
+            continue;
+        }
+        if (thisnum > high && (smallest_above_last == 0 || thisnum < smallest_above_last)) {
+            smallest_above_last = thisnum;
+        }
+    }
+    AP::FS().closedir(d);
+    if (smallest_above_last != 0) {
+        // we have wrapped, add in the logs with high numbers
+        ret += (_front.get_max_num_logs() - smallest_above_last) + 1;
+    }
+
+    return ret;
+}
+
+bool AP_Logger_File::dirent_to_log_num_custom(const dirent *de, uint16_t &log_num) const
+{
+    uint8_t length = strlen(de->d_name);
+    if (length < 5) {
+        return false;
+    }
+    if (strncmp(&de->d_name[length-4], ".CSV", 4) != 0) {
+        // doesn't end in .BIN
+        return false;
+    }
+
+    uint16_t thisnum = strtoul(de->d_name, nullptr, 10);
+    if (thisnum > _front.get_max_num_logs()) {
+        return false;
+    }
+    //GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "dirent_to_log_num_custom: %s | %d", de->d_name, thisnum);
+    log_num = thisnum;
+    return true;
+}
+
+
+uint32_t AP_Logger_File::_get_log_size_custom(const uint16_t log_num)
+{
+    char *fname = _log_file_name_custom(log_num);
+    if (fname == nullptr) {
+        return 0;
+    }
+    if (_write_fd_custom != -1 && write_fd_semaphore_custom.take_nonblocking()) {
+        if (_write_filename_custom != nullptr && strcmp(_write_filename_custom, fname) == 0) {
+            // it is the file we are currently writing
+            free(fname);
+            write_fd_semaphore_custom.give();
+            return _write_offset;
+        }
+        write_fd_semaphore_custom.give();
+    }
+    struct stat st;
+    EXPECT_DELAY_MS(3000);
+    if (AP::FS().stat(fname, &st) != 0) {
+        free(fname);
+        return 0;
+    }
+    free(fname);
+    return st.st_size;
+}
+uint32_t AP_Logger_File::_get_log_time_custom(const uint16_t log_num)
+{
+    char *fname = _log_file_name_custom(log_num);
+    if (fname == nullptr) {
+        return 0;
+    }
+    if (_write_fd_custom != -1 && write_fd_semaphore_custom.take_nonblocking()) {
+        if (_write_filename_custom != nullptr && strcmp(_write_filename_custom, fname) == 0) {
+            // it is the file we are currently writing
+            free(fname);
+            write_fd_semaphore_custom.give();
+            uint64_t utc_usec;
+            if (!AP::rtc().get_utc_usec(utc_usec)) {
+                return 0;
+            }
+            return utc_usec / 1000000U;
+        }
+        write_fd_semaphore_custom.give();
+    }
+    struct stat st;
+    EXPECT_DELAY_MS(3000);
+    if (AP::FS().stat(fname, &st) != 0) {
+        free(fname);
+        return 0;
+    }
+    free(fname);
+    return st.st_mtime;
+}
+
+/*
+  find size and date of a CSV log
+ */
+void AP_Logger_File::get_log_info_custom(const uint16_t list_entry, uint32_t &size, uint32_t &time_utc)
+{
+    uint16_t log_num = log_num_from_list_entry(list_entry);
+    if (log_num == 0) {
+        // that failed - probably no logs
+        size = 0;
+        time_utc = 0;
+        return;
+    }
+
+    size = _get_log_size_custom(log_num);
+    time_utc = _get_log_time_custom(log_num);
+}
+
+
+/*
+  retrieve data from a CSV log file
+ */
+ int16_t AP_Logger_File::get_log_data_custom(const uint16_t list_entry, const uint16_t page, const uint32_t offset, const uint16_t len, uint8_t *data)
+ { 
+     const uint16_t log_num = log_num_from_list_entry(list_entry);
+     if (log_num == 0) {
+         // that failed - probably no logs
+         return -1;
+     }
+ 
+     if (_read_fd_custom != -1 && log_num != _read_fd_log_num_custom) {
+         AP::FS().close(_read_fd_custom);
+         _read_fd_custom = -1;
+     }
+     if (_read_fd_custom == -1) {
+         char *fname = _log_file_name_custom(log_num);
+         if (fname == nullptr) {
+             return -1;
+         }
+         stop_logging();
+         EXPECT_DELAY_MS(3000);
+         _read_fd_custom = AP::FS().open(fname, O_RDONLY);
+         if (_read_fd_custom == -1) {
+            int saved_errno = errno;
+             free(fname);
+             GCS_SEND_TEXT(MAV_SEVERITY_INFO, "CSV read open fail for %s - %s", fname, strerror(saved_errno));
+             return -1;            
+         }
+         free(fname);
+         _read_offset_custom = 0;
+         _read_fd_log_num_custom = log_num;
+     }
+     uint32_t ofs = page * (uint32_t)LOGGER_PAGE_SIZE + offset;
+ 
+     if (ofs != _read_offset_custom) {
+         if (AP::FS().lseek(_read_fd_custom, ofs, SEEK_SET) == (off_t)-1) {
+             AP::FS().close(_read_fd_custom);
+             _read_fd_custom = -1;
+             return -1;
+         }
+         _read_offset_custom = ofs;
+     }
+     int16_t ret = (int16_t)AP::FS().read(_read_fd_custom, data, len);
+     if (ret > 0) {
+         _read_offset_custom += ret;
+     }
+     return ret;
+ }
 #endif // HAL_LOGGING_FILESYSTEM_ENABLED
 

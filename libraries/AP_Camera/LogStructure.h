@@ -4,7 +4,8 @@
 
 #define LOG_IDS_FROM_CAMERA \
     LOG_CAMERA_MSG, \
-    LOG_TRIGGER_MSG
+    LOG_TRIGGER_MSG, \
+    LOG_CAM_TRIG_ORG
 
 // @LoggerMessage: CAM,TRIG
 // @Description: Camera shutter information
@@ -38,8 +39,29 @@ struct PACKED log_Camera {
     uint16_t yaw;
 };
 
+struct PACKED log_camTrig_org {
+  LOG_PACKET_HEADER;
+  uint64_t time_us;
+  uint16_t image_number;
+  int32_t  latitude;
+  int32_t  longitude;
+  float  altitude_rel;
+  float  cam_roll;
+  float  cam_pitch;
+  float cam_yaw;
+  uint8_t  fix_type;
+  int32_t  altitude_gps;
+  float  roll;
+  float  pitch;
+  float yaw;
+  uint16_t gps_week;
+  uint32_t gps_time;
+};
+
 #define LOG_STRUCTURE_FROM_CAMERA \
     { LOG_CAMERA_MSG, sizeof(log_Camera), \
       "CAM", "QBHIHLLeeeccC","TimeUS,I,Img,GPSTime,GPSWeek,Lat,Lng,Alt,RelAlt,GPSAlt,R,P,Y", "s#---DUmmmddd", "F----GGBBBBBB" }, \
     { LOG_TRIGGER_MSG, sizeof(log_Camera), \
-      "TRIG", "QBHIHLLeeeccC","TimeUS,I,Img,GPSTime,GPSWeek,Lat,Lng,Alt,RelAlt,GPSAlt,R,P,Y", "s#---DUmmmddd", "F----GGBBBBBB" },
+      "TRIG", "QBHIHLLeeeccC","TimeUS,I,Img,GPSTime,GPSWeek,Lat,Lng,Alt,RelAlt,GPSAlt,R,P,Y", "s#---DUmmmddd", "F----GGBBBBBB" }, \
+    { LOG_CAM_TRIG_ORG, sizeof(log_camTrig_org), \
+      "RTK", "QHLLffffBefffHI","TimeUS,I,Lat,Lng,RAlt,CR,CP,CY,FIX,GPSAlt,R,P,Y,GWeek,GTime", "s-DUmddd-mddd--", "F-GGBBBB-0000--" },

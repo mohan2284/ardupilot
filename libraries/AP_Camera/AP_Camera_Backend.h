@@ -151,6 +151,7 @@ public:
 #endif
 
 /*Start: Asteria Code Change*/
+void send_camera_trigger_org(mavlink_channel_t chan) const;
 
 bool camTrig_init();
 bool trig_init_start = false;
@@ -201,6 +202,10 @@ protected:
     void Write_Camera(uint64_t timestamp_us=0);
     void Write_Trigger();
     void Write_CameraInfo(enum LogMessages msg, uint64_t timestamp_us=0);
+
+    void Write_Camera_org(uint64_t timestamp_us=0);
+    void Write_Trigger_org();
+    void Write_CameraInfo_org(enum LogMessages msg, uint64_t timestamp_us=0);
 
     // get corresponding mount instance for the camera
     uint8_t get_mount_instance() const;
