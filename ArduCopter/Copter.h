@@ -412,8 +412,77 @@ private:
     } failsafe;
 
     bool any_failsafe_triggered() const {
-        return failsafe.radio || battery.has_failsafed() || failsafe.gcs || failsafe.ekf || failsafe.terrain || failsafe.adsb || failsafe.deadreckon;
+        return failsafe.radio || battery.has_failsafed() || failsafe.gcs || failsafe.ekf || failsafe.terrain || failsafe.adsb || failsafe.deadreckon /* || asteria.have_wind_failsafe() || asteria.get_temp_fs_flag() || asteria.DBFS_engaged */;
     }
+
+    bool soft_failsafe_engaged() const {
+        return pos_control->get_vibe_comp_enabled();
+    }
+
+    enum class FailsafeType : uint16_t {
+        Radio           = 1,
+        Battery         = 2,
+        GCS             = 4,
+        EKF             = 8,
+        ADSB            = 16,
+        Wind            = 32,
+        DBFS            = 64,
+        Terrain         = 128,        
+        Deadreckon      = 256,
+        Temp            = 512,
+        Vibe            = 1024,
+    } ;
+
+    uint16_t failsafe_type_triggered() const {
+        uint16_t failsafe_mask = 0;
+
+        if(failsafe.radio)
+        {
+            failsafe_mask += (uint16_t)FailsafeType::Radio;
+        }
+        if(battery.has_failsafed())
+        {
+            failsafe_mask += (uint16_t)FailsafeType::Battery;
+        }
+        if(failsafe.gcs)
+        {
+            failsafe_mask += (uint16_t)FailsafeType::GCS;
+        }
+        if(failsafe.ekf)
+        {
+            failsafe_mask += (uint16_t)FailsafeType::EKF;
+        }
+        if(failsafe.adsb)
+        {
+            failsafe_mask += (uint16_t)FailsafeType::ADSB;
+        }
+        /* if(asteria.have_wind_failsafe())
+        {
+            failsafe_mask += (uint16_t)FailsafeType::Wind;
+        }
+        if(asteria.DBFS_engaged)
+        {
+            failsafe_mask += (uint16_t)FailsafeType::DBFS;
+        } */
+        if(failsafe.terrain)
+        {
+            failsafe_mask += (uint16_t)FailsafeType::Terrain;
+        }
+        if(failsafe.deadreckon)
+        {
+            failsafe_mask += (uint16_t)FailsafeType::Deadreckon;
+        }
+        /* if(asteria.get_temp_fs_flag())
+        {
+            failsafe_mask += (uint16_t)FailsafeType::Temp;
+        } */
+        if(pos_control->get_vibe_comp_enabled())
+        {
+            failsafe_mask += (uint16_t)FailsafeType::Vibe;
+        }
+        return failsafe_mask;
+    }
+
 
     // dead reckoning state
     struct {

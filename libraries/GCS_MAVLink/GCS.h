@@ -495,7 +495,12 @@ public:
 
     MAV_RESULT set_message_interval(uint32_t msg_id, int32_t interval_us);
 
+    void send_failsafeType(void) const;
+
 protected:
+
+    virtual uint16_t failsafe_type() const { return 0; }
+    virtual bool soft_failsafe() const { return false; }
 
     bool mavlink_coordinate_frame_to_location_alt_frame(MAV_FRAME coordinate_frame,
                                                         Location::AltFrame &frame);
@@ -838,8 +843,9 @@ private:
         const ap_message id;
         uint16_t interval_ms;
         uint16_t last_sent_ms; // from AP_HAL::millis16()
-    } deferred_message[3] = {
+    } deferred_message[4] = {
         { MSG_HEARTBEAT, },
+        { MSG_FAILSAFE_TYPE, },
         { MSG_NEXT_PARAM, },
 #if HAL_HIGH_LATENCY2_ENABLED
         { MSG_HIGH_LATENCY2, },

@@ -418,6 +418,8 @@ public:
     // enable or disable high vibration compensation
     void set_vibe_comp(bool on_off) { _vibe_comp_enabled = on_off; }
 
+    bool get_vibe_comp_enabled() const { return _vibe_comp_enabled; }
+
     /// get_vel_z_error_ratio - returns the proportion of error relative to the maximum request
     float get_vel_z_control_ratio() const { return constrain_float(_vel_z_control_ratio, 0.0f, 1.0f); }
 

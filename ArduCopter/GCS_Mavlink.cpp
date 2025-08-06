@@ -82,6 +82,15 @@ MAV_STATE GCS_MAVLINK_Copter::vehicle_system_status() const
     return MAV_STATE_ACTIVE;
 }
 
+uint16_t GCS_MAVLINK_Copter::failsafe_type() const
+{
+    return copter.failsafe_type_triggered();
+}
+
+bool GCS_MAVLINK_Copter::soft_failsafe() const
+{
+    return copter.soft_failsafe_engaged();
+}
 
 void GCS_MAVLINK_Copter::send_attitude_target()
 {

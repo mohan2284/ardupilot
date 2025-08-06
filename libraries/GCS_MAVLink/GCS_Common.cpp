@@ -1005,6 +1005,7 @@ ap_message GCS_MAVLINK::mavlink_id_to_ap_message_id(const uint32_t mavlink_id) c
         ap_message msg_id;
     } map[] {
         { MAVLINK_MSG_ID_HEARTBEAT,             MSG_HEARTBEAT},
+        { MAVLINK_MSG_ID_FAILSAFE_TYPE,         MSG_FAILSAFE_TYPE},
         { MAVLINK_MSG_ID_HOME_POSITION,         MSG_HOME},
         { MAVLINK_MSG_ID_GPS_GLOBAL_ORIGIN,     MSG_ORIGIN},
         { MAVLINK_MSG_ID_SYS_STATUS,            MSG_SYS_STATUS},
@@ -1181,6 +1182,7 @@ bool GCS_MAVLINK::should_send_message_in_delay_callback(const ap_message id) con
     switch (id) {
     case MSG_NEXT_PARAM:
     case MSG_HEARTBEAT:
+    case MSG_FAILSAFE_TYPE:
 #if HAL_HIGH_LATENCY2_ENABLED
     case MSG_HIGH_LATENCY2:
 #endif
@@ -1772,6 +1774,7 @@ void GCS_MAVLINK::send_message(enum ap_message id)
 {
     switch (id) {
     case MSG_HEARTBEAT:
+    case MSG_FAILSAFE_TYPE:
 #if HAL_HIGH_LATENCY2_ENABLED
     case MSG_HIGH_LATENCY2:
 #endif
@@ -3098,6 +3101,24 @@ void GCS_MAVLINK::send_heartbeat() const
         base_mode(),
         gcs().custom_mode(),
         system_status());
+}
+
+void GCS_MAVLINK::send_failsafeType() const
+{
+    static uint8_t failsafe_engaged;
+
+    MAV_STATE _system_status = vehicle_system_status();
+    if(_system_status < MAV_STATE_CRITICAL) {
+        failsafe_engaged = 0;
+    }
+    if(_system_status >= MAV_STATE_CRITICAL || soft_failsafe()) {
+        failsafe_engaged = 1;
+    }
+
+    mavlink_msg_failsafe_type_send(
+        chan,
+        failsafe_engaged,
+        failsafe_type());
 }
 
 #if AP_RC_CHANNEL_ENABLED
@@ -6074,6 +6095,11 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
         send_heartbeat();
         break;
 
+    case MSG_FAILSAFE_TYPE:
+        CHECK_PAYLOAD_SIZE(FAILSAFE_TYPE);
+        send_failsafeType();
+        break;
+
     case MSG_HWSTATUS:
         CHECK_PAYLOAD_SIZE(HWSTATUS);
         send_hwstatus();
@@ -6694,17 +6720,19 @@ void GCS_MAVLINK::initialise_message_intervals_from_streamrates()
 #if HAL_HIGH_LATENCY2_ENABLED
     if (!is_high_latency_link) {
         set_mavlink_message_id_interval(MAVLINK_MSG_ID_HEARTBEAT, 1000);
+        set_mavlink_message_id_interval(MAVLINK_MSG_ID_FAILSAFE_TYPE, 1000);
     } else {
         set_mavlink_message_id_interval(MAVLINK_MSG_ID_HIGH_LATENCY2, 5000);
     }
 #else
     set_mavlink_message_id_interval(MAVLINK_MSG_ID_HEARTBEAT, 1000);
+    set_mavlink_message_id_interval(MAVLINK_MSG_ID_FAILSAFE_TYPE, 1000);
 #endif
 }
 
 bool GCS_MAVLINK::get_default_interval_for_ap_message(const ap_message id, uint16_t &interval) const
 {
-    if (id == MSG_HEARTBEAT) {
+    if (id == MSG_HEARTBEAT || id == MSG_FAILSAFE_TYPE) {
         // handle heartbeat requests as a special case because heartbeat is not "streamed"
         interval = 1000;
         return true;
