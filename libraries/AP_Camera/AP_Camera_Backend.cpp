@@ -42,6 +42,17 @@ void AP_Camera_Backend::update()
         }
     }
 
+    const bool using_feedback_pin = _params.feedback_pin > 0;
+
+    if (using_feedback_pin && !fb_high) {
+        // ensure we are in input mode
+        hal.gpio->pinMode(_params.feedback_pin, HAL_GPIO_INPUT);
+        // enable pullup/pulldown
+        uint8_t trigger_polarity = _params.feedback_polarity == 0 ? 0 : 1;
+        hal.gpio->write(_params.feedback_pin, !trigger_polarity);
+        fb_high = true;
+    }
+
     // try to take picture if pending
     if (trigger_pending) {
         take_picture();
@@ -49,6 +60,15 @@ void AP_Camera_Backend::update()
 
     // check feedback pin
     check_feedback();
+
+    if( ((_params._cam1_bootup_trig_time * 1000) > 0) && !abort_camInit)
+    {
+        //do the camera bootup trigger
+        if(!trig_init_done)
+        {
+            camTrig_init();
+        }
+    }
 
     // time based triggering
     // if time and distance triggering both are enabled then we only do time based triggering
@@ -151,6 +171,7 @@ bool AP_Camera_Backend::take_picture()
 
     // trigger actually taking picture and update image count
     if (trigger_pic()) {
+        camTrig = true;
         image_index++;
         last_picture_time_ms = now_ms;
         IGNORE_RETURN(AP::ahrs().get_location(last_location));
@@ -162,6 +183,102 @@ bool AP_Camera_Backend::take_picture()
 
     return false;
 }
+
+/*Start: Asteria Code Change*/
+bool AP_Camera_Backend::camTrig_init(){
+    if(!trig_init_start){
+        gcs().send_text(MAV_SEVERITY_WARNING, "Please wait while geotagging is being sync!");
+        trig_init_start = true;
+    }
+
+    static const uint32_t tstart = AP_HAL::millis();
+    static uint8_t count = 0;
+
+    if(!first_trig && ((AP_HAL::millis() - tstart) > (uint32_t)(_params._cam1_bootup_trig_time * 1000)))
+    {
+        if(feedback_rcvd && trig_pic){
+            gcs().send_text(MAV_SEVERITY_WARNING, "CAM1 INIT TRIG-1 completed");
+            first_trig = true;
+            feedback_rcvd = false;
+            count = 0;
+            trig_pic = false;
+            trig_fail = false;
+            return true;
+        }
+
+        if(trig_pic && ((AP_HAL::millis() - last_trig) < ((_params.trigger_duration * 1000)+500)))
+        {
+            return false;
+        }
+
+        if(!feedback_rcvd && trig_pic && !trig_fail)
+        {
+            count++;
+            trig_fail = true;
+            gcs().send_text(MAV_SEVERITY_WARNING, "TRIG-1 attempt-%d feedback, failed", count);
+            if(count > 2){
+                _params.trigger_duration.set_and_save(_frontend.trigger_duration_copy);
+                abort_camInit = true;
+                gcs().send_text(MAV_SEVERITY_WARNING, "CAM1 INIT TRIG-1 failed");
+                return false;
+            }
+        } 
+
+        if(take_picture())
+        {
+            gcs().send_text(MAV_SEVERITY_WARNING, "TRIG-1 attempt-%d", count+1);
+            trig_pic = true;
+            trig_fail = false;
+            last_trig = AP_HAL::millis();
+            last_tstart = AP_HAL::millis();
+            return true;
+        }
+    }
+    else if(!trig_init_done && first_trig && ((AP_HAL::millis() - last_tstart) > 5000))
+    {
+        if(feedback_rcvd && trig_pic){
+            gcs().send_text(MAV_SEVERITY_WARNING, "CAM1 INIT TRIG-2 completed");
+            gcs().send_text(MAV_SEVERITY_WARNING, "Ready for Mapping Missions");
+            _params.trigger_duration.set_and_save(_frontend.trigger_duration_copy);
+            trig_init_done = true;
+            feedback_rcvd = false;
+            count = 0;
+            last_tstart = 0;
+            trig_pic = false;
+            trig_fail = false;
+            return true;
+        }
+        
+
+        if(trig_pic && ((AP_HAL::millis() - last_trig) < ((_params.trigger_duration * 1000)+500)))
+        {
+            return false;
+        }
+
+        if(!feedback_rcvd && trig_pic && !trig_fail)
+        {
+            count++;
+            trig_fail = true;
+            gcs().send_text(MAV_SEVERITY_WARNING, "TRIG-2 attempt-%d feedback, failed", count);
+            if(count > 2){
+                _params.trigger_duration.set_and_save(_frontend.trigger_duration_copy);
+                abort_camInit = true;
+                gcs().send_text(MAV_SEVERITY_WARNING, "CAM1 INIT TRIG-2 failed");
+                return false;
+            }
+        }
+
+        if(take_picture()){
+            gcs().send_text(MAV_SEVERITY_WARNING, "TRIG-2 attempt-%d", count+1);
+            trig_pic = true;
+            trig_fail = false;
+            last_trig = AP_HAL::millis();
+            return true;
+        }
+    }
+    return false;
+}
+/*End: Asteria Code Change*/
 
 // take multiple pictures, time_interval between two consecutive pictures is in miliseconds
 // total_num is number of pictures to be taken, -1 means capture forever
@@ -376,15 +493,15 @@ void AP_Camera_Backend::setup_feedback_callback()
     uint8_t trigger_polarity = _params.feedback_polarity == 0 ? 0 : 1;
     hal.gpio->write(_params.feedback_pin, !trigger_polarity);
 
-    if (hal.gpio->attach_interrupt(_params.feedback_pin, FUNCTOR_BIND_MEMBER(&AP_Camera_Backend::feedback_pin_isr, void, uint8_t, bool, uint32_t),
+    /* if (hal.gpio->attach_interrupt(_params.feedback_pin, FUNCTOR_BIND_MEMBER(&AP_Camera_Backend::feedback_pin_isr, void, uint8_t, bool, uint32_t),
                                    trigger_polarity?AP_HAL::GPIO::INTERRUPT_RISING:AP_HAL::GPIO::INTERRUPT_FALLING)) {
         isr_installed = true;
-    } else {
+    } else { */
         // install a 1kHz timer to check feedback pin
         hal.scheduler->register_timer_process(FUNCTOR_BIND_MEMBER(&AP_Camera_Backend::feedback_pin_timer, void));
 
         timer_installed = true;
-    }
+    //}
 }
 
 // interrupt handler for interrupt based feedback trigger
@@ -401,9 +518,11 @@ void AP_Camera_Backend::feedback_pin_timer()
     uint8_t pin_state = hal.gpio->read(_params.feedback_pin);
     uint8_t trigger_polarity = _params.feedback_polarity == 0 ? 0 : 1;
     if (pin_state == trigger_polarity &&
-        last_pin_state != trigger_polarity) {
+        last_pin_state != trigger_polarity && camTrig) {
         feedback_trigger_timestamp_us = AP_HAL::micros();
         feedback_trigger_count++;
+        feedback_rcvd = true;
+        camTrig = false;
     }
     last_pin_state = pin_state;
 }

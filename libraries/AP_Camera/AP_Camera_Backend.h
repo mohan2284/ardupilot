@@ -150,6 +150,23 @@ public:
     virtual bool change_setting(CameraSetting setting, float value) { return false; }
 #endif
 
+/*Start: Asteria Code Change*/
+
+bool camTrig_init();
+bool trig_init_start = false;
+bool trig_pic = false;
+bool trig_init_done = false;
+bool first_trig = false;
+bool feedback_rcvd = false;
+bool abort_camInit = false;
+uint32_t last_tstart = 0;
+uint32_t last_trig = 0;
+bool trig_fail = false;
+bool fb_high = false;
+bool camTrig = false;
+
+/*End: Asteria Code Change*/
+
 protected:
 
     // references

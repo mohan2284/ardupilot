@@ -26,6 +26,8 @@ public:
     AP_Float hfov;              // horizontal field of view in degrees
     AP_Float vfov;              // vertical field of view in degrees
 
+    AP_Int8 _cam1_bootup_trig_time; // Asteria: Time to wait for camera to bootup
+
     // pin number for accurate camera feedback messages
     AP_Int8 feedback_pin;
     AP_Int8 feedback_polarity;

@@ -103,6 +103,14 @@ const AP_Param::GroupInfo AP_Camera_Params::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("_VFOV", 13, AP_Camera_Params, vfov, 0),
 
+    // @Param: _INIT_TRIG
+    // @DisplayName: Camera Trigger after Startup
+    // @Description: 2 consecutive TRIGGER commands given after this many sec of bootup of Autopilot.
+    // @Units: s
+    // @Range: 0 120
+    // @User: Standard
+    AP_GROUPINFO("_INIT_TRIG",  15, AP_Camera_Params, _cam1_bootup_trig_time, 0),
+
     AP_GROUPEND
 
 };

@@ -196,6 +196,14 @@ void AP_Camera::init()
     // perform any required parameter conversion
     convert_params();
 
+    trigger_duration_copy = _params[0].trigger_duration;
+    if((_params[0]._cam1_bootup_trig_time * 1000) > 0){
+        _params[0].trigger_duration.set(4);
+    }
+    else{
+        _params[0].trigger_duration.set_and_save(trigger_duration_copy);
+    }
+
     // create each instance
     for (uint8_t instance = 0; instance < AP_CAMERA_MAX_INSTANCES; instance++) {
         switch ((CameraType)_params[instance].type.get()) {
@@ -266,8 +274,19 @@ void AP_Camera::handle_message(mavlink_channel_t chan, const mavlink_message_t &
         // decode deprecated MavLink message that controls camera.
         __mavlink_digicam_control_t packet;
         mavlink_msg_digicam_control_decode(&msg, &packet);
-        control(packet.session, packet.zoom_pos, packet.zoom_step, packet.focus_lock, packet.shot, packet.command_id);
-        return;
+        if( ((_params[0]._cam1_bootup_trig_time * 1000) > 0) && !primary->abort_camInit)
+        {
+            if(primary->trig_init_done)
+            {
+                control(packet.session, packet.zoom_pos, packet.zoom_step, packet.focus_lock, packet.shot, packet.command_id);
+                return;
+            }
+            return;
+        }
+        else{
+            control(packet.session, packet.zoom_pos, packet.zoom_step, packet.focus_lock, packet.shot, packet.command_id);
+            return;
+        }
     }
 
     // call each instance
@@ -286,8 +305,23 @@ MAV_RESULT AP_Camera::handle_command(const mavlink_command_int_t &packet)
         configure(packet.param1, packet.param2, packet.param3, packet.param4, packet.x, packet.y, packet.z);
         return MAV_RESULT_ACCEPTED;
     case MAV_CMD_DO_DIGICAM_CONTROL:
-        control(packet.param1, packet.param2, packet.param3, packet.param4, packet.x, packet.y);
-        return MAV_RESULT_ACCEPTED;
+    {
+        if( ((_params[0]._cam1_bootup_trig_time * 1000) > 0) && !primary->abort_camInit)
+        {
+            if(primary->trig_init_done)
+            {
+                control(packet.param1, packet.param2, packet.param3, packet.param4, packet.x, packet.y);
+                return MAV_RESULT_ACCEPTED;
+            }
+            gcs().send_text(MAV_SEVERITY_WARNING, "Camera not ready for control!");
+            return MAV_RESULT_FAILED;
+        }
+        else
+        {
+            control(packet.param1, packet.param2, packet.param3, packet.param4, packet.x, packet.y);
+            return MAV_RESULT_ACCEPTED;
+        }
+    }
     case MAV_CMD_DO_SET_CAM_TRIGG_DIST:
         set_trigger_distance(packet.param1);
         if (is_equal(packet.param3, 1.0f)) {

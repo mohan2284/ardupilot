@@ -217,6 +217,10 @@ protected:
     // parameters for backends
     AP_Camera_Params _params[AP_CAMERA_MAX_INSTANCES];
 
+/*Start: Asteria Code Change*/
+    float trigger_duration_copy = 0.0f; // copy of trigger duration for camera bootup trigger
+/*End: Asteria Code Change*/
+
 private:
 
     static AP_Camera *_singleton;
