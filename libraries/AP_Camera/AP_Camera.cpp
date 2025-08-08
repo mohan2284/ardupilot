@@ -15,8 +15,6 @@
 #include "AP_Camera_MAVLinkCamV2.h"
 #include "AP_Camera_Scripting.h"
 
-#include <AP_Logger/AP_Logger.h>
-
 const AP_Param::GroupInfo AP_Camera::var_info[] = {
 
     // @Param: _MAX_ROLL

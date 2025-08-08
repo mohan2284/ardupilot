@@ -125,7 +125,7 @@ void AP_Camera_Backend::Write_CameraInfo_org(enum LogMessages msg, uint64_t time
         cam_roll    : wrap_180(ahrs.roll_sensor*1e-2f),
         cam_pitch   : wrap_180(ahrs.pitch_sensor*1e-2f),
         cam_yaw     : wrap_180(ahrs.yaw_sensor*1e-2f),
-        fix_type    : gps.status(0),
+        fix_type    : (uint8_t)gps.status(0),
         altitude_gps: (int32_t)(altitude_gps),
         roll        : ahrs.get_roll(),
         pitch       : ahrs.get_pitch(),

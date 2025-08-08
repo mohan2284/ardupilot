@@ -4,6 +4,7 @@
 
 #include "AP_Camera_config.h"
 #include <inttypes.h>
+#include <AP_Logger/AP_Logger.h>
 #if AP_CAMERA_ENABLED
 
 #include <AP_Param/AP_Param.h>

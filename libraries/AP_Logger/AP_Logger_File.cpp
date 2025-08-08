@@ -1411,9 +1411,9 @@ void AP_Logger_File::get_log_info_custom(const uint16_t list_entry, uint32_t &si
          _read_fd_custom = AP::FS().open(fname, O_RDONLY);
          if (_read_fd_custom == -1) {
             int saved_errno = errno;
-             free(fname);
-             GCS_SEND_TEXT(MAV_SEVERITY_INFO, "CSV read open fail for %s - %s", fname, strerror(saved_errno));
-             return -1;            
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "CSV read open fail for %s - %s", fname, strerror(saved_errno));
+            free(fname);
+            return -1;            
          }
          free(fname);
          _read_offset_custom = 0;
