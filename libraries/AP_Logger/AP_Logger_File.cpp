@@ -931,11 +931,7 @@ void AP_Logger_File::io_timer(void)
             start_csv_log();
             start_csv_log_pending = false;
         }
-        if (!write_fd_semaphore_custom.take(1)) {
-            return;
-        }
         io_csv_write();     /* Asteria Code Change */
-        write_fd_semaphore_custom.give();
         return;
     }
 
@@ -1038,8 +1034,9 @@ void AP_Logger_File::io_timer(void)
         }
 #endif
     }
-    io_csv_write();
-
+    if(!start_csv_log_pending){
+        io_csv_write();
+    }
     write_fd_semaphore.give();
 }
 
@@ -1095,14 +1092,14 @@ void AP_Logger_File::start_csv_log(void)
 
 void AP_Logger_File::io_csv_write(void)
 {
-    /* if (!write_fd_semaphore_custom.take(1)) {
+    if (!write_fd_semaphore_custom.take(1)) {
         return;
-    } */
+    }
 	if (_write_fd_custom == -1) {
     	_write_fd_custom = AP::FS().open(_write_filename_custom,  O_WRONLY|O_CREAT|O_APPEND);
     	if (_write_fd_custom == -1) {
     		GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "Failed to open %s\n", _write_filename_custom);
-            //write_fd_semaphore_custom.give();
+            write_fd_semaphore_custom.give();
     		return;
     	}
     }
@@ -1125,7 +1122,7 @@ void AP_Logger_File::io_csv_write(void)
 	}
     pBuffer_custom = nullptr;
 	size_custom = 0;
-    //write_fd_semaphore_custom.give();
+    write_fd_semaphore_custom.give();
 }
 
 bool AP_Logger_File::io_thread_alive() const
@@ -1208,7 +1205,7 @@ bool AP_Logger_File::writecsv(const void *pBuffer, uint16_t size)
         {
             //GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Writing CSV data!");
             strcpy(buf_custom, (const char*)pBuffer);
-            //GCS_SEND_TEXT(MAV_SEVERITY_WARNING,"%s", buf_custom);
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING,"%s", buf_custom);
             pBuffer_custom = buf_custom;
             size_custom = size;
         }
@@ -1222,7 +1219,7 @@ bool AP_Logger_File::writeheader(const void *buf, uint16_t size)
         {
             //GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Writing CSV header!");
             strcpy(buf_custom, (const char*)buf);
-            //GCS_SEND_TEXT(MAV_SEVERITY_WARNING,"%s", buf_custom);
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING,"%s", buf_custom);
             pBuffer_custom = buf_custom;
             size_custom = size;
             header_size = size;

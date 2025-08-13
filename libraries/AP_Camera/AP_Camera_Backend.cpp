@@ -628,7 +628,7 @@ void AP_Camera_Backend::send_camera_trigger_org(mavlink_channel_t chan) const
 
     char buf[250];
     const int16_t offset = snprintf(buf, sizeof(buf), "ImageCaptureTimestamp,ImgIndex,GPSLatitude,GPSLongitude,RelALT,CAMRoll,CAMPitch,CAMYaw,GPSFixType,GNSSAntennaALT,UASRoll,UASPitch,UASYaw,GPSWeek,GPSTime\r\n");
-    GCS_SEND_TEXT(MAV_SEVERITY_WARNING,"Creating the header");
+    //GCS_SEND_TEXT(MAV_SEVERITY_WARNING,"Creating the header");
     snprintf(buf + offset, sizeof(buf), "%" PRIu64",%u,%0.7f,%0.7f,%0.2f,%0.2f,%0.2f,%0.2f,%u,%" PRId32 ",%0.2f,%0.2f,%0.2f,%" PRIu64 ",%" PRIu32 "\r\n", camera_feedback.timestamp_us, image_index, loc.lat * 1e-7f, loc.lng * 1e-7f, altitude_rel*1e-2f, wrap_180(ahrs.roll_sensor*1e-2f), wrap_180(ahrs.pitch_sensor*1e-2f), wrap_180(ahrs.yaw_sensor*1e-2f), fixType, height_ellipsoid_mm, ahrs.get_roll()*1e-2f, ahrs.get_pitch()*1e-2f, ahrs.get_yaw()*1e-2f, number_of_week, week_elapsed_time);
     AP::logger().WriteLogHeader(buf, strlen(buf));
      
