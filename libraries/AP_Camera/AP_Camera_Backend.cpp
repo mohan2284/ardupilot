@@ -638,6 +638,6 @@ void AP_Camera_Backend::send_camera_trigger_org(mavlink_channel_t chan) const
         AP::logger().WriteCSVBlock(data, strlen(data));
     }
     GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Camera trigger org feedback sent!");
-}
 #endif // HAL_LOGGING_ENABLED
+}
 #endif // AP_CAMERA_ENABLED
