@@ -625,7 +625,7 @@ void AP_Camera_Backend::send_camera_trigger_org(mavlink_channel_t chan) const
         ahrs.get_yaw(),//Yaw
         number_of_week,
         week_elapsed_time);
-
+#if HAL_LOGGING_ENABLED
     char buf[250];
     const int16_t offset = snprintf(buf, sizeof(buf), "ImageCaptureTimestamp,ImgIndex,GPSLatitude,GPSLongitude,RelALT,CAMRoll,CAMPitch,CAMYaw,GPSFixType,GNSSAntennaALT,UASRoll,UASPitch,UASYaw,GPSWeek,GPSTime\r\n");
     //GCS_SEND_TEXT(MAV_SEVERITY_WARNING,"Creating the header");
@@ -639,5 +639,5 @@ void AP_Camera_Backend::send_camera_trigger_org(mavlink_channel_t chan) const
     }
     GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Camera trigger org feedback sent!");
 }
-
+#endif // HAL_LOGGING_ENABLED
 #endif // AP_CAMERA_ENABLED

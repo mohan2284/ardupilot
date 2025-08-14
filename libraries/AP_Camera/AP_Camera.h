@@ -3,9 +3,9 @@
 #pragma once
 
 #include "AP_Camera_config.h"
+#if AP_CAMERA_ENABLED
 #include <inttypes.h>
 #include <AP_Logger/AP_Logger.h>
-#if AP_CAMERA_ENABLED
 
 #include <AP_Param/AP_Param.h>
 #include <GCS_MAVLink/GCS_MAVLink.h>
