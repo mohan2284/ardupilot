@@ -607,15 +607,15 @@ void AP_Camera::send_feedback(mavlink_channel_t chan)
     }
 }
 
-void AP_Camera::send_trigger_org_feedback(mavlink_channel_t chan) const
-{
+void AP_Camera::send_trigger_org_feedback(mavlink_channel_t chan) const{
+#if HAL_LOGGING_ENABLED
     if(AP::logger()._params.downloadcsv == 0){
         //RTK message is not sent and CSV log is not stored
         return;
     }
+#endif // HAL_LOGGING_ENABLED
     _backends[0]->send_camera_trigger_org(chan);
 }
-
 // send camera information message to GCS
 void AP_Camera::send_camera_information(mavlink_channel_t chan)
 {
